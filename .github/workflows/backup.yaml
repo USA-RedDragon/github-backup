@@ -14,29 +14,26 @@ jobs:
       - id: matrix
         run: echo 'matrix=[{"owner":"USA-RedDragon"},{"owner":"AstroGardenLLC"},{"owner":"kubewg-net"},{"owner":"USA-RedDragon-ORG"}]' >>"$GITHUB_OUTPUT"
 
-  authenticate-authentik:
-    uses: ./.github/workflows/authentik.yaml
-    permissions:
-      id-token: write
-    with:
-      authentik-url: ${{ vars.AUTHENTIK_URL }}
-    secrets:
-      client-id: ${{ secrets.AUTHENTIK_CLIENT_ID }}
-
   backup:
     name: Backup
-    needs: [matrix, authenticate-authentik]
+    needs: [matrix]
     runs-on: ubuntu-24.04
     strategy:
       matrix:
         owners: ${{fromJson(needs.matrix.outputs.matrix)}}
     permissions:
+      contents: read
       id-token: write
     steps:
+      - name: Authenticate to Authentik
+        uses: USA-RedDragon/action-authentik@v0.0.2
+        id: authentik
+        with:
+          authentik-url: ${{ vars.AUTHENTIK_URL }}
+          client-id: ${{ secrets.AUTHENTIK_CLIENT_ID }}
       - name: Authentik to Minio OIDC
         run: |
-          echo no-op
-          echo ${{ needs.authenticate-authentik.outputs.token }}
+          echo ${{ steps.authentik.outputs.token }}
       - name: GitHub Token
         id: app-token
         uses: actions/create-github-app-token@v1
