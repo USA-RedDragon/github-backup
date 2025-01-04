@@ -1,0 +1,56 @@
+name: Backup
+
+on:
+  # schedule:
+  #   - cron: "0 12 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  matrix:
+    # runs-on: ubuntu-24.04
+    runs-on: self-hosted
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        run: echo 'matrix=[{"owner":"USA-RedDragon"},{"owner":"AstroGardenLLC"},{"owner":"kubewg-net"},{"owner":"USA-RedDragon-ORG"}]' >>"$GITHUB_OUTPUT"
+
+  backup:
+    name: Backup
+    needs: [matrix]
+    # runs-on: ubuntu-24.04
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        owners: ${{fromJson(needs.matrix.outputs.matrix)}}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authentik to Minio OIDC
+        run: |
+          echo no-op
+      - name: GitHub Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: ${{ matrix.owners.owner }}
+      - name: Backup repos
+        id: backup
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -eu
+          gh auth setup-git
+          func do_backup() (
+            echo "Backing up $1"
+            echo "Printing dollar2 $2"
+          )
+          export -f do_backup
+          gh repo list --no-archived --limit=9999 --json name,pushedAt ${{ matrix.owners.owner }} \
+            | jq -c 'sort_by(.name | ascii_downcase) | .[]' \
+            | parallel do_backup 2>&1 \
+            | ts $'%H:%M:%S' \
+            | tee log.txt
