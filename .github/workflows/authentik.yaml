@@ -38,13 +38,6 @@ jobs:
             -H "Content-Type: application/json" \
             ${{steps.github-token-info.outputs.token-url}} \
             -d "{}" | jq -r '.value')
-          jwtd() {
-              if [[ -x $(command -v jq) ]]; then
-                  jq -R 'split(".") | .[0],.[1] | @base64d | fromjson' <<< "${1}"
-                  echo "Signature: $(echo "${1}" | awk -F'.' '{print $3}')"
-              fi
-          }
-          jwtd $IDTOKEN
           echo "token=${IDTOKEN}" >> $GITHUB_OUTPUT
       - name: Authentik Token
         id: authentik-token
