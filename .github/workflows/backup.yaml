@@ -33,7 +33,13 @@ jobs:
           client-id: ${{ secrets.AUTHENTIK_CLIENT_ID }}
       - name: Authentik to Minio OIDC
         run: |
-          echo ${{ steps.authentik.outputs.token }}
+          set -eu
+          curl -v \
+            -X POST \
+            --url-query "Action=AssumeRoleWithWebIdentity" \
+            --url-query "WebIdentityToken=${{ steps.authentik.outputs.token }}" \
+            --url-query "Version=2011-06-15" \
+            ${{ vars.MINIO_ENDPOINT }}
       - name: GitHub Token
         id: app-token
         uses: actions/create-github-app-token@v1
