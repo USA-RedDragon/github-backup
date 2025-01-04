@@ -26,11 +26,12 @@ jobs:
       id-token: write
     steps:
       - name: Authenticate to Authentik
-        uses: USA-RedDragon/action-authentik@v0.0.5
+        uses: USA-RedDragon/action-authentik@v0.0.6
         id: authentik
         with:
           authentik-url: ${{ vars.AUTHENTIK_URL }}
           client-id: ${{ secrets.AUTHENTIK_CLIENT_ID }}
+          scope: minio
       - name: Authentik to Minio OIDC
         run: |
           set -eu
