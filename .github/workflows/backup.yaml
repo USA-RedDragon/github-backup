@@ -69,6 +69,4 @@ jobs:
           export -f do_backup
           gh repo list --no-archived --limit=9999 --json name,pushedAt ${{ matrix.owners.owner }} \
             | jq -c 'sort_by(.name | ascii_downcase) | .[]' \
-            | parallel do_backup 2>&1 \
-            | ts $'%H:%M:%S' \
-            | tee log.txt
+            | parallel do_backup 2>&1
