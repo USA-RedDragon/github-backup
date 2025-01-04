@@ -1,0 +1,59 @@
+name: Authenticate with Authentik
+
+on:
+  workflow_call:
+    inputs:
+      authentik-url:
+        type: string
+        required: true
+    secrets:
+      client-id:
+        required: true
+    outputs:
+      token:
+        value: ${{ jobs.auth.outputs.token }}
+
+jobs:
+  auth:
+    runs-on: ubuntu-24.04
+    outputs:
+      token: ${{ steps.authentik-token.outputs.token }}
+    steps:
+      - name: GitHub Token Info
+        uses: actions/github-script@v6
+        id: github-token-info
+        timeout-minutes: 1
+        with:
+          script: |
+            const token = process.env['ACTIONS_RUNTIME_TOKEN']
+            const runtimeUrl = process.env['ACTIONS_ID_TOKEN_REQUEST_URL']
+            core.setOutput('token', token.trim())
+            core.setOutput('token-url', runtimeUrl.trim())
+      - name: GitHub Token
+        id: github-token
+        run: |
+          IDTOKEN=$(curl -fSsL \
+            -H "Authorization: bearer ${{steps.github-token-info.outputs.token}}" \
+            -H "Accept: application/json; api-version=2.0" \
+            -H "Content-Type: application/json" \
+            ${{steps.github-token-info.outputs.token-url}} \
+            -d "{}" | jq -r '.value')
+          jwtd() {
+              if [[ -x $(command -v jq) ]]; then
+                  jq -R 'split(".") | .[0],.[1] | @base64d | fromjson' <<< "${1}"
+                  echo "Signature: $(echo "${1}" | awk -F'.' '{print $3}')"
+              fi
+          }
+          jwtd $IDTOKEN
+          echo "token=${IDTOKEN}" >> $GITHUB_OUTPUT
+      - name: Authentik Token
+        id: authentik-token
+        run: |
+          IDTOKEN=$(curl -fSsL \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials" \
+            -d "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+            -d "client_id=${{ secrets.client-id }}" \
+            -d "client_assertion=${{ steps.github-token.outputs.token }}" \
+            ${{ inputs.authentik-url }}/application/o/token/ | jq -r '.access_token')
+          echo "token=${IDTOKEN}" >> $GITHUB_OUTPUT
