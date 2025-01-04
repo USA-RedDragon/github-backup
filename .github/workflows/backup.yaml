@@ -26,7 +26,7 @@ jobs:
       id-token: write
     steps:
       - name: Authenticate to Authentik
-        uses: USA-RedDragon/action-authentik@v0.0.3
+        uses: USA-RedDragon/action-authentik@v0.0.4
         id: authentik
         with:
           authentik-url: ${{ vars.AUTHENTIK_URL }}
