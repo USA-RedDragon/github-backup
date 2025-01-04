@@ -51,7 +51,7 @@ jobs:
         run: |
           set -eu
           gh auth setup-git
-          func do_backup() (
+          do_backup() (
             set -eu
             source <(yq -p=json -o=shell <<<"$1")
             mkdir -p "${{ matrix.owners.owner }}"
