@@ -32,45 +32,45 @@ jobs:
           authentik-url: ${{ vars.AUTHENTIK_URL }}
           client-id: ${{ secrets.AUTHENTIK_CLIENT_ID }}
           scope: minio
-      - name: Authentik to Minio OIDC
-        run: |
-          set -eu
-          curl -v \
-            -X POST \
-            --url-query "Action=AssumeRoleWithWebIdentity" \
-            --url-query "WebIdentityToken=${{ steps.authentik.outputs.token }}" \
-            --url-query "Version=2011-06-15" \
-            ${{ vars.MINIO_ENDPOINT }}
-      - name: GitHub Token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: ${{ matrix.owners.owner }}
-      - name: Backup repos
-        id: backup
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -eu
-          gh auth setup-git
-          do_backup() (
-            set -eu
-            source <(yq -p=json -o=shell <<<"$1")
-            mkdir -p "${{ matrix.owners.owner }}"
-            reponame="${{ matrix.owners.owner }}_$name"
-            repodir="${{ matrix.owners.owner }}/$name"
-            git clone --mirror "https://github.com/${{ matrix.owners.owner }}/$name" "$reponame"
-            tar --sort=name --mtime="$pushedAt" -cf "$reponame.tar" "$reponame"
-            rm -rf "$reponame"
-            mkdir -p "$repodir"
-            mv "$reponame.tar" "$repodir"
-            du -sh "$repodir"
-            aws --endpoint-url "${{ vars.MINIO_ENDPOINT }}" s3 sync "$repodir" "s3://${{ vars.MINIO_BUCKET }}/$repodir"
-            rm -rf "$repodir"
-          )
-          export -f do_backup
-          gh repo list --no-archived --limit=9999 --json name,pushedAt ${{ matrix.owners.owner }} \
-            | jq -c 'sort_by(.name | ascii_downcase) | .[]' \
-            | parallel do_backup 2>&1
+      # - name: Authentik to Minio OIDC
+      #   run: |
+      #     set -eu
+      #     curl -v \
+      #       -X POST \
+      #       --url-query "Action=AssumeRoleWithWebIdentity" \
+      #       --url-query "WebIdentityToken=${{ steps.authentik.outputs.token }}" \
+      #       --url-query "Version=2011-06-15" \
+      #       ${{ vars.MINIO_ENDPOINT }}
+      # - name: GitHub Token
+      #   id: app-token
+      #   uses: actions/create-github-app-token@v1
+      #   with:
+      #     app-id: ${{ vars.BOT_APP_ID }}
+      #     private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      #     owner: ${{ matrix.owners.owner }}
+      # - name: Backup repos
+      #   id: backup
+      #   env:
+      #     GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      #   run: |
+      #     set -eu
+      #     gh auth setup-git
+      #     do_backup() (
+      #       set -eu
+      #       source <(yq -p=json -o=shell <<<"$1")
+      #       mkdir -p "${{ matrix.owners.owner }}"
+      #       reponame="${{ matrix.owners.owner }}_$name"
+      #       repodir="${{ matrix.owners.owner }}/$name"
+      #       git clone --mirror "https://github.com/${{ matrix.owners.owner }}/$name" "$reponame"
+      #       tar --sort=name --mtime="$pushedAt" -cf "$reponame.tar" "$reponame"
+      #       rm -rf "$reponame"
+      #       mkdir -p "$repodir"
+      #       mv "$reponame.tar" "$repodir"
+      #       du -sh "$repodir"
+      #       aws --endpoint-url "${{ vars.MINIO_ENDPOINT }}" s3 sync "$repodir" "s3://${{ vars.MINIO_BUCKET }}/$repodir"
+      #       rm -rf "$repodir"
+      #     )
+      #     export -f do_backup
+      #     gh repo list --no-archived --limit=9999 --json name,pushedAt ${{ matrix.owners.owner }} \
+      #       | jq -c 'sort_by(.name | ascii_downcase) | .[]' \
+      #       | parallel do_backup 2>&1
