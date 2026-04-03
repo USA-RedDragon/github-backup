@@ -23,13 +23,12 @@ jobs:
         owners: ${{fromJson(needs.matrix.outputs.matrix)}}
     permissions:
       contents: read
-      id-token: write
     steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-        with:
-          role-to-assume: arn:aws:iam::803205869942:role/github-backups
-          aws-region: us-east-1
+      - name: Configure B2 Credentials
+        run: |
+          aws configure set aws_access_key_id "${{ secrets.B2_APPLICATION_KEY_ID }}"
+          aws configure set aws_secret_access_key "${{ secrets.B2_APPLICATION_KEY }}"
+          aws configure set region auto
       - name: GitHub Token
         id: app-token
         uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
@@ -56,7 +55,7 @@ jobs:
             mkdir -p "$repodir"
             mv "$reponame.tar" "$repodir"
             du -sh "$repodir"
-            aws s3 sync "$repodir" "s3://mcswain-git-backups/$repodir"
+            aws s3 sync "$repodir" "s3://mcswain-git-backups/$repodir" --endpoint-url "${{ secrets.B2_ENDPOINT_URL }}"
             rm -rf "$repodir"
           )
           export -f do_backup
