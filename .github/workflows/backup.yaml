@@ -44,6 +44,8 @@ jobs:
         run: |
           set -eu
           gh auth setup-git
+          # Pre-initialize GPG home to avoid race condition across parallel workers
+          gpg --batch --list-keys >/dev/null 2>&1 || true
           do_backup() (
             set -eu
             source <(yq -p=json -o=shell <<<"$1")
