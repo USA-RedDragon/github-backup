@@ -40,6 +40,7 @@ jobs:
         id: backup
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
         run: |
           set -eu
           gh auth setup-git
@@ -52,8 +53,12 @@ jobs:
             git clone --mirror "https://github.com/${{ matrix.owners.owner }}/$name" "$reponame"
             tar --sort=name --mtime="$pushedAt" -cf "$reponame.tar" "$reponame"
             rm -rf "$reponame"
+            gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+              --symmetric --cipher-algo AES256 \
+              --output "$reponame.tar.gpg" "$reponame.tar"
+            rm -f "$reponame.tar"
             mkdir -p "$repodir"
-            mv "$reponame.tar" "$repodir"
+            mv "$reponame.tar.gpg" "$repodir"
             du -sh "$repodir"
             aws s3 sync "$repodir" "s3://mcswain-git-backups/$repodir" --endpoint-url "${{ secrets.B2_ENDPOINT_URL }}"
             rm -rf "$repodir"
