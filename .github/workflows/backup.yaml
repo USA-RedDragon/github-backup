@@ -47,27 +47,32 @@ jobs:
           # Pre-initialize GPG home to avoid race condition across parallel workers
           gpg --batch --list-keys >/dev/null 2>&1 || true
           do_backup() (
-            set -eu
+            set -euo pipefail
             source <(yq -p=json -o=shell <<<"$1")
-            mkdir -p "${{ matrix.owners.owner }}"
-            reponame="${{ matrix.owners.owner }}_$name"
-            repodir="${{ matrix.owners.owner }}/$name"
-            if [ "$isArchived" = "true" ] && aws s3 ls "s3://mcswain-git-backups/$repodir/$reponame.tar.gpg" --endpoint-url "${{ secrets.B2_ENDPOINT_URL }}" >/dev/null; then
-              echo "skipping archived $repodir, already backed up"
+            owner="${{ matrix.owners.owner }}"
+            endpoint="${{ secrets.B2_ENDPOINT_URL }}"
+            reponame="${owner}_$name"
+            repodir="$owner/$name"
+            key="$repodir/$reponame.tar.zst.gpg"
+            fingerprint=$(git ls-remote "https://github.com/$owner/$name" | sha256sum | cut -d' ' -f1)
+            stored=$(aws s3api head-object --bucket mcswain-git-backups --key "$key" --endpoint-url "$endpoint" --query Metadata.fingerprint --output text 2>/dev/null || true)
+            if [ "$stored" = "$fingerprint" ]; then
+              echo "unchanged $repodir"
               exit 0
             fi
-            git clone --mirror "https://github.com/${{ matrix.owners.owner }}/$name" "$reponame"
-            tar --sort=name --mtime="$pushedAt" -cf "$reponame.tar" "$reponame"
+            git clone --mirror "https://github.com/$owner/$name" "$reponame"
+            tar --sort=name --mtime="$pushedAt" -cf - "$reponame" \
+              | zstd -q -T0 \
+              | gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+                --symmetric --cipher-algo AES256 --compress-algo none \
+                --output "$reponame.tar.zst.gpg"
             rm -rf "$reponame"
-            gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
-              --symmetric --cipher-algo AES256 \
-              --output "$reponame.tar.gpg" "$reponame.tar"
-            rm -f "$reponame.tar"
-            mkdir -p "$repodir"
-            mv "$reponame.tar.gpg" "$repodir"
-            du -sh "$repodir"
-            aws s3 sync "$repodir" "s3://mcswain-git-backups/$repodir" --endpoint-url "${{ secrets.B2_ENDPOINT_URL }}"
-            rm -rf "$repodir"
+            du -sh "$reponame.tar.zst.gpg"
+            aws s3 cp "$reponame.tar.zst.gpg" "s3://mcswain-git-backups/$key" --metadata "fingerprint=$fingerprint" --endpoint-url "$endpoint"
+            rm -f "$reponame.tar.zst.gpg"
+            if aws s3 ls "s3://mcswain-git-backups/$repodir/$reponame.tar.gpg" --endpoint-url "$endpoint" >/dev/null; then
+              aws s3 rm "s3://mcswain-git-backups/$repodir/$reponame.tar.gpg" --endpoint-url "$endpoint"
+            fi
           )
           export -f do_backup
           gh repo list --limit=9999 --json name,pushedAt,isArchived ${{ matrix.owners.owner }} \
